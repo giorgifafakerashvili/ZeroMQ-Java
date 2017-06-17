@@ -104,45 +104,45 @@ abstract class PollerBase implements Runnable {
    * the next timer or 0 meaning "no timers"
    */
    protected long executeTimers() {
-     assert(Thread.currentThread() == worker);
+     
+     assert (Thread.currentThread() == worker);
 
-     // Fast track
-     if(timers.isEmpty()) {
-       return 0L;
-     }
+        //  Fast track.
+        if (timers.isEmpty()) {
+            return 0L;
+        }
 
-     // Get the current time.
-     long current = Clock.nowMS();
+        //  Get the current time.
+        long current = Clock.nowMS();
 
-     // Execute the timers that are alrady due.
-     for(Entry<TimerInfo Long> entry : timers.entries()) {
-       final TimerInfo timerInfo = entry.getKey();
+        //   Execute the timers that are already due.
+        for (Entry<TimerInfo, Long> entry : timers.entries()) {
+            final TimerInfo timerInfo = entry.getKey();
+            if (timerInfo.cancelled) {
+                timers.remove(entry);
+                continue;
+            }
+            //  If we have to wait to execute the item, same will be true about
+            //  all the following items (multimap is sorted). Thus we can stop
+            //  checking the subsequent timers and return the time to wait for
+            //  the next timer (at least 1ms).
 
-       if(timerInfo.cancelled) {
-         timers.remove(entry);
-         continue;
-       }
+            final Long key = entry.getValue();
 
+            if (key > current) {
+                return key - current;
+            }
 
-     //  If we have to wait to execute the item, same will be true about
-     //  all the following items (multimap is sorted). Thus we can stop
-     //  checking the subsequent timers and return the time to wait for
-     //  the next timer (at least 1ms).
+            //  Trigger the timer.
+            if (!timerInfo.cancelled) {
+                timerInfo.sink.timerEvent(timerInfo.id);
+            }
 
-     final Long key = entry.getValue();
+            //  Remove it from the list of active timers.
+            timers.remove(entry);
+        }
 
-     if(key  > current) {
-       return key - current;
-     }
-
-     // Triger the timer
-     if(!timerInfo.cancelled) {
-       timerInfo.sink.timerEvent(timerInfo.id);
-     }
-
-     // Remove it from the list of active timers.
-     timers.remove(entry);
-
-     }
+        //  There are no more timers.
+        return 0L;
    }
 }
