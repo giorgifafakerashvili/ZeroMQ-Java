@@ -45,5 +45,91 @@ public class PollItem {
     return interest;
   }
 
-  
+  public final boolean isReadable() {
+    return (ready & ZMQ.ZMQ_POLLIN) > 0;
+  }
+
+  public final boolean isWritable() {
+    return (ready & ZMQ.ZMQ_POLLOUT) > 0;
+  }
+
+  public final boolean isError() {
+    return (ready & ZMQ.ZMQ_POLLERR) > 0;
+  }
+
+  public final SocketBase getSocket() {
+    return socket;
+  }
+
+  public final SelectableChannel getRawSocket() {
+    return channel;
+  }
+
+  public final SelectableChannel getChannel() {
+    if(socket != null) {
+      // If the poll item is a OMQ socket we are interested in input on
+      // the notification file descriptor retrieved by the ZMQ_FD socket operationr
+      return socket.getFD();
+    } else {
+      // Else, the poll item is a raw file descriptor. Convert the poll item
+      // events to the appropriate fd_sets
+      return channel;
+    }
+  }
+
+  public final int interestOps() {
+    return interest;
+  }
+
+  public final int zinterestOps() {
+    return zinterest;
+  }
+
+  public final int interestOps(int ops) {
+    init(ops);
+    return interest;
+  }
+
+  public final int readyOps(SelectionKey key, int nevents) {
+    ready = 0;
+
+    if(socket != null) {
+      // Retrieve pending events
+      // using the ZMQ_EVENTs socket options.
+
+      int events = socket.getSocketOpt(ZMQ.ZMQ_EVENTS);
+      if(events < 0) {
+        return -1;
+      }
+
+      if((zinterest & ZMQ.ZMQ_POLLOUT) > 0 && (events & ZQM.ZMQ_POLLOUT) > 0) {
+        ready |= ZMQ.ZMQ_POLLOUT;
+      }
+
+      if((zinterest & ZMQ.ZMQ_POLLIN) > 0 && (events & ZMQ.ZMQ_POLLIN) > 0) {
+        ready |= ZMQ.ZMQ_POLLIN;
+      }
+    }
+
+    // Else
+    else if(nevents > 0) {
+      if(key.isReadable()) {
+        ready |= ZMQ.ZMQ_POLLIN;
+      }
+
+      if(key.isWritable()) {
+        ready |= ZMQ.ZMQ_POLLOUT;
+      }
+
+      if(!key.isValid() || key.isAcceptable() || key.isConnectable()) {
+        ready |= ZMQ.ZMQ_POLLERR;
+      }
+    }
+
+    return ready;
+  }
+
+  public final int readyOps() {
+    return ready; 
+  }
 }
